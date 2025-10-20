@@ -459,7 +459,7 @@ MonoBehaviour:
   gridUnitSize: 0.2
   clusterSize: 1
   numIterations: 5
-  stiffness: 0.1
+  stiffness: 0.8
   gravity: {x: 0, y: -9.8, z: 0}
   colliderBoxSize: {x: 2, y: 2, z: 2}
   gridParticlePrefab: {fileID: 8486315648766406445, guid: 2fb433631c30be0469fa36af1a69ab7b, type: 3}

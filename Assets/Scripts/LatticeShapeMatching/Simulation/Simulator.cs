@@ -24,6 +24,9 @@ public class Simulator : MonoBehaviour
 
     private void Start()
     {
+        // ボクセルごとに、元形状との交差判定・内外判定を行い、このボクセルが使用されるかどうか判定する
+
+
         // グリッド状にパーティクルを配置する
         numGridX = Mathf.CeilToInt(gridRange.x / gridUnitSize);
         numGridY = Mathf.CeilToInt(gridRange.y / gridUnitSize);
