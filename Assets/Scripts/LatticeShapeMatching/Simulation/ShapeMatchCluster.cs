@@ -3,23 +3,21 @@ using Common.Mathematics.LinearAlgebra;
 
 public class ShapeMatchCluster
 {
-    private GridParticle[] particles;
+    private Particle[] particles;
 
     private Vector3 restCenter;
     private Matrix3x3f invRestMatrix;
     private Vector3[] restPositions;
 
     private int numParticles;
-    private float stiffness;
 
-    private const float EPSILON = 0.000001f;
+    private const float EPSILON = 1e-6f;
 
-    public ShapeMatchCluster(GridParticle[] particles, float stiffness)
+    public ShapeMatchCluster(Particle[] particles)
     {
-        this.particles = new GridParticle[particles.Length];
+        this.particles = new Particle[particles.Length];
         particles.CopyTo(this.particles, 0);
 
-        this.stiffness = stiffness;
         numParticles = particles.Length;
 
         // 初期状態の重心の計算
@@ -28,7 +26,7 @@ public class ShapeMatchCluster
         {
             restCenter += this.particles[i].pos;
         }
-        restCenter /= this.particles.Length;
+        restCenter /= numParticles;
 
         // 初期状態の重心からの相対位置を計算する
         Matrix3x3f A = new Matrix3x3f();
@@ -60,9 +58,11 @@ public class ShapeMatchCluster
         {
             particles[i].numClusters++;
         }
+
+        Debug.Log("クラスタが持つパーティクルの数：" + numParticles);
     }
 
-    public void ConstraintPositions()
+    public void ConstrainPositions()
     {
         // 現在の重心を計算する
         Vector3 center = new Vector3(0, 0, 0);
@@ -101,11 +101,11 @@ public class ShapeMatchCluster
         Matrix3x3f R = new Matrix3x3f();
         Matrix3x3fDecomposition.PolarDecompositionStable(A, EPSILON, out R);
 
-        // パーティクルにこのクラスタでの目標位置の加重平均を加算
+        // パーティクルにこのクラスタでの目標位置を加算
         for (int i = 0; i < numParticles; i++)
         {
             Vector3 goal = center + R * restPositions[i];
-            particles[i].AddGoalPos(goal);
+            particles[i].goalPos += goal - particles[i].predictedPos;
         }
 
     }
