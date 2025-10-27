@@ -1,0 +1,86 @@
+#pragma kernel AddExternalForce
+#pragma kernel PredictPosition
+#pragma kernel ShapeMatchingSolver
+#pragma kernel AvaragingGoalPos
+#pragma kernel UpdatePosAndVel
+
+struct PBDParticleGPU
+{
+    float3 position;
+    float3 predictedPosition;
+    float3 velocity;
+};
+
+struct ShapematchingClusterParam
+{
+    float3 restCenter;
+    float3x3 invRestMatrix;
+    int numClusterParticles;
+    int startParticleIndex;
+};
+
+struct ShapeMatchingClusterParticle
+{
+    int particleIndex;
+    float3 restPosition;
+    float3 correction;
+};
+
+struct CorrectionReference
+{
+    int index; // ShapeMatchingClusterParticlesの何番目に登録されているか
+};
+
+struct CorrectionReferenceHelper
+{
+    int startIndex; // CorrectionReferenceのバッファの中で、自身のパーティクルの開始位置
+    int numClusters; // このパーティクルが登録されているクラスタの数
+};
+
+RWStructuredBuffer<PBDParticleGPU> Particles;
+StructuredBuffer<ShapematchingClusterParam> ClusterParams;
+RWStructuredBuffer<ShapeMatchingClusterParticle> ClusterParticles;
+StructuredBuffer<CorrectionReference> References;
+StructuredBuffer<CorrectionReferenceHelper> ReferenceHelpers;
+
+uint numParticles;
+float dt;
+float dampCoeff;
+float2 gravity;
+float k;
+
+
+[numthreads(64, 1, 1)]
+void AddExternalForce (uint id : SV_DispatchThreadID)
+{
+    if (id >= numParticles) return;
+    Particles[id].velocity += gravity * dt;
+}
+
+[numthreads(64, 1, 1)]
+void PredictPosition (uint id : SV_DispatchThreadID)
+{
+    if (id >= numParticles) return;
+    Particles[id].predictedPosition = Particles[id].position + Particles[id].velocity * dt * dampCoeff;
+}
+
+[numthreads(64, 1, 1)]
+void ShapeMatchingSolver (uint id : SV_DispatchThreadID)
+{
+    
+}
+
+[numthreads(64, 1, 1)]
+void AvaragingGoalPos (uint id : SV_DispatchThreadID)
+{
+    
+}
+
+
+[numthreads(64, 1, 1)]
+void UpdatePosAndVel (uint id : SV_DispatchThreadID)
+{
+    if (id >= numParticles) return;
+    Particles[id].velocity = (Particles[id].predictedPosition - Particles[id].position) / dt;
+    Particles[id].position = Particles[id].predictedPosition;
+}

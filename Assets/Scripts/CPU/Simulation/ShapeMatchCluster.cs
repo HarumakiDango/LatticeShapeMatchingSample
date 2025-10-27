@@ -3,20 +3,24 @@ using Common.Mathematics.LinearAlgebra;
 
 public class ShapeMatchCluster
 {
-    private Particle[] particles;
+    public PBDParticle[] particles;
+    public int[] particleIndices; // パーティクル配列中でのパーティクルのインデックス
 
-    private Vector3 restCenter;
-    private Matrix3x3f invRestMatrix;
-    private Vector3[] restPositions;
+    public Vector3 restCenter;
+    public Matrix3x3f invRestMatrix;
+    public Vector3[] restPositions;
 
-    private int numParticles;
+    public int numParticles;
 
     private const float EPSILON = 1e-6f;
 
-    public ShapeMatchCluster(Particle[] particles)
+    public ShapeMatchCluster(PBDParticle[] particles, int[] indices)
     {
-        this.particles = new Particle[particles.Length];
+        this.particles = new PBDParticle[particles.Length];
         particles.CopyTo(this.particles, 0);
+
+        particleIndices = new int[indices.Length];
+        indices.CopyTo(particleIndices, 0);
 
         numParticles = particles.Length;
 

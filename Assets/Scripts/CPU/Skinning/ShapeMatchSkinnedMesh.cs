@@ -73,7 +73,7 @@ public class ShapeMatchSkinnedMesh : MonoBehaviour
     private void LateUpdate()
     {
         // スキニング実行
-        Particle[,,] p = GetComponent<LatticeManager>().particles;
+        PBDParticle[,,] p = GetComponent<LatticeManager>().particles;
 
         Vector3[] skinnedVertices = new Vector3[skinnedMesh.vertices.Length];
 

@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class Particle
+public class PBDParticle
 {
     public Vector3 pos = new Vector3(0, 0, 0);
     public Vector3 predictedPos = new Vector3(0, 0, 0);
@@ -11,7 +11,7 @@ public class Particle
     // このパーティクルが割り当てられているクラスタの数
     public int numClusters = 0;
 
-    public Particle(Vector3 pos)
+    public PBDParticle(Vector3 pos)
     {
         this.pos = pos;
         predictedPos = pos;

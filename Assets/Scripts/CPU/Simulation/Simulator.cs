@@ -11,7 +11,7 @@ public class Simulator : MonoBehaviour
     public Vector3 gravity = new Vector3(0, -9.8f, 0);
     public Vector3 colliderBoxSize = new Vector3(2, 2, 2);
 
-    private Particle[] particles;
+    private PBDParticle[] particles;
     private int numParticles;
 
     private ShapeMatchCluster[] shapeMatchClusters;
@@ -24,9 +24,9 @@ public class Simulator : MonoBehaviour
 
     }
 
-    public void Initialize(Particle[] particles, ShapeMatchCluster[] clusters)
+    public void Initialize(PBDParticle[] particles, ShapeMatchCluster[] clusters)
     {
-        this.particles = new Particle[particles.Length];
+        this.particles = new PBDParticle[particles.Length];
         particles.CopyTo(this.particles, 0);
 
         shapeMatchClusters = new ShapeMatchCluster[clusters.Length];
@@ -120,7 +120,7 @@ public class Simulator : MonoBehaviour
     /// <summary>
     /// 外力の適用
     /// </summary>
-    private void AddExternalForce(Particle particle, float dt)
+    private void AddExternalForce(PBDParticle particle, float dt)
     {
         particle.vel = particle.vel + dt * gravity;
     }
@@ -128,7 +128,7 @@ public class Simulator : MonoBehaviour
     /// <summary>
     /// 現在の速度から推定位置を計算
     /// </summary>
-    private void PredictPosition(Particle particle, float dt)
+    private void PredictPosition(PBDParticle particle, float dt)
     {
         particle.predictedPos = particle.pos + dt * dampCoeff * particle.vel;
     }
@@ -136,7 +136,7 @@ public class Simulator : MonoBehaviour
     /// <summary>
     /// 衝突判定
     /// </summary>
-    private void ApplyCollider(Particle particle)
+    private void ApplyCollider(PBDParticle particle)
     {
         particle.predictedPos = new Vector3(
             Mathf.Clamp(particle.predictedPos.x, -colliderBoxSize.x, colliderBoxSize.x),
@@ -147,7 +147,7 @@ public class Simulator : MonoBehaviour
     /// <summary>
     /// 修正した位置をもとに速度を計算する
     /// </summary>
-    private void UpdatePosVel(Particle particle, float dt)
+    private void UpdatePosVel(PBDParticle particle, float dt)
     {
         particle.vel = (particle.predictedPos - particle.pos) / dt;
         particle.pos = particle.predictedPos;

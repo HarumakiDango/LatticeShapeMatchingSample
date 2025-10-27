@@ -9,7 +9,7 @@ public class LatticeManager : MonoBehaviour
     public int clusterSize = 1;
 
     private bool[,,] isValidPoint;
-    public Particle[,,] particles;
+    public PBDParticle[,,] particles;
 
     private int numGridX;
     private int numGridY;
@@ -55,7 +55,7 @@ public class LatticeManager : MonoBehaviour
 
 
         // パーティクルを初期化
-        particles = new Particle[numGridX, numGridY, numGridZ];
+        particles = new PBDParticle[numGridX, numGridY, numGridZ];
         for (int z = 0; z < numGridZ; z++)
         {
             for (int y = 0; y < numGridY; y++)
@@ -63,7 +63,7 @@ public class LatticeManager : MonoBehaviour
                 for (int x = 0; x < numGridX; x++)
                 {
                     Vector3 initPos = new Vector3(gridUnitSize * x, gridUnitSize * y, gridUnitSize * z);
-                    particles[x, y, z] = new Particle(initPos);
+                    particles[x, y, z] = new PBDParticle(initPos);
                 }
             }
         }
@@ -78,7 +78,7 @@ public class LatticeManager : MonoBehaviour
                 {
                     if (!isValidPoint[x, y, z]) continue;
 
-                    List<Particle> clusterParticleList = new List<Particle>();
+                    List<PBDParticle> clusterParticleList = new List<PBDParticle>();
 
                     for (int k = z - clusterSize; k <= z + clusterSize; k++)
                     {
@@ -105,7 +105,7 @@ public class LatticeManager : MonoBehaviour
         }
 
         // シミュレーターに入力する
-        List<Particle> simulationParticleList = new List<Particle>();
+        List<PBDParticle> simulationParticleList = new List<PBDParticle>();
         for (int z = 0; z < numGridZ; z++)
         {
             for (int y = 0; y < numGridY; y++)
