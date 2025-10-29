@@ -1,8 +1,15 @@
 #pragma kernel AddExternalForce
 #pragma kernel PredictPosition
 #pragma kernel ShapeMatchingSolver
-#pragma kernel AvaragingGoalPos
+#pragma kernel AverageGoalPos
 #pragma kernel UpdatePosAndVel
+
+// #pragma pack_matrix( row_major )
+
+#include "Common/Matrix3x3.hlsl"
+#include "Common/Matrix.hlsl"
+
+#define THREAD_GROUP_SIZE_X 64
 
 struct PBDParticleGPU
 {
@@ -14,7 +21,9 @@ struct PBDParticleGPU
 struct ShapematchingClusterParam
 {
     float3 restCenter;
-    float3x3 invRestMatrix;
+    float3 invRestMatrixRow0;
+    float3 invRestMatrixRow1;
+    float3 invRestMatrixRow2;    
     int numClusterParticles;
     int startParticleIndex;
 };
@@ -44,40 +53,129 @@ StructuredBuffer<CorrectionReference> References;
 StructuredBuffer<CorrectionReferenceHelper> ReferenceHelpers;
 
 uint numParticles;
+uint numClusters;
 float dt;
 float dampCoeff;
-float2 gravity;
+float3 gravity;
 float k;
+float colliderSize;
 
-
-[numthreads(64, 1, 1)]
+[numthreads(THREAD_GROUP_SIZE_X, 1, 1)]
 void AddExternalForce (uint id : SV_DispatchThreadID)
 {
     if (id >= numParticles) return;
     Particles[id].velocity += gravity * dt;
 }
 
-[numthreads(64, 1, 1)]
+[numthreads(THREAD_GROUP_SIZE_X, 1, 1)]
 void PredictPosition (uint id : SV_DispatchThreadID)
 {
     if (id >= numParticles) return;
     Particles[id].predictedPosition = Particles[id].position + Particles[id].velocity * dt * dampCoeff;
+
+    // 簡易の衝突判定
+    Particles[id].predictedPosition = float3(
+        clamp(Particles[id].predictedPosition.x, -colliderSize, colliderSize),
+        clamp(Particles[id].predictedPosition.y, -colliderSize, colliderSize),
+        clamp(Particles[id].predictedPosition.z, -colliderSize, colliderSize));
 }
 
-[numthreads(64, 1, 1)]
+[numthreads(THREAD_GROUP_SIZE_X, 1, 1)]
 void ShapeMatchingSolver (uint id : SV_DispatchThreadID)
 {
-    
+    if (id >= numClusters) return;
+
+    int numClusterParticles = ClusterParams[id].numClusterParticles;
+    int startParticleIndex = ClusterParams[id].startParticleIndex;
+    float3 restCenter = ClusterParams[id].restCenter;
+    float3 invRestMatrixRow0 = ClusterParams[id].invRestMatrixRow0;
+    float3 invRestMatrixRow1 = ClusterParams[id].invRestMatrixRow1;
+    float3 invRestMatrixRow2 = ClusterParams[id].invRestMatrixRow2;
+
+    // 現在の重心の座標を計算する
+    float3 center = float3(0, 0, 0);
+    for (int i = 0; i < numClusterParticles; i++)
+    {
+        int particleIndex = ClusterParticles[startParticleIndex + i].particleIndex;
+        center += Particles[particleIndex].predictedPosition;
+    }
+    center /= numClusterParticles;
+
+    // Moment Matrix
+    float3x3 A = float3x3(0,0,0, 0,0,0, 0,0,0);
+
+    for (int i = 0; i < numClusterParticles; i++)
+    {
+        int particleIndex = ClusterParticles[startParticleIndex + i].particleIndex;
+
+        float3 q = ClusterParticles[startParticleIndex + i].restPosition;
+        float3 p = Particles[particleIndex].predictedPosition - center;
+
+        A[0][0] += p.x * q.x;
+        A[0][1] += p.x * q.y;
+        A[0][2] += p.x * q.z;
+
+        A[1][0] += p.y * q.x;
+        A[1][1] += p.y * q.y;
+        A[1][2] += p.y * q.z;
+
+        A[2][0] += p.z * q.x;
+        A[2][1] += p.z * q.y;
+        A[2][2] += p.z * q.z;
+    }
+
+    A = mul(A, invRestMatrix);
+
+    // 回転行列を求める
+    float3x3 R = float3x3(1,0,0, 0,1,0, 0,0,1);
+    // PolarDecompositionStable(A, 1e-6, R);
+    // R = Matrix3x3FindRotationMatrixJacobi(A);
+
+    // このクラスタでの修正ベクトルを保存する
+    for (int i = 0; i < numClusterParticles; i++)
+    {
+        int particleIndex = ClusterParticles[startParticleIndex + i].particleIndex;
+
+        float3 q = ClusterParticles[startParticleIndex + i].restPosition;
+        float3 p = Particles[particleIndex].predictedPosition;
+
+        float3 goal = center + mul(R, q);
+        ClusterParticles[startParticleIndex + i].correction = (goal - p);
+
+        // デバッグ
+        // ClusterParticles[startParticleIndex + i].correction = float3(0, 0.0001, 0);
+    }
+
 }
 
-[numthreads(64, 1, 1)]
-void AvaragingGoalPos (uint id : SV_DispatchThreadID)
+[numthreads(THREAD_GROUP_SIZE_X, 1, 1)]
+void AverageGoalPos (uint id : SV_DispatchThreadID)
 {
-    
+    if (id >= numParticles) return;
+
+    int startIndex = ReferenceHelpers[id].startIndex;
+    int numClusters = ReferenceHelpers[id].numClusters;
+
+    float3 correctionAvg = float3(0, 0, 0);
+
+    for (int i = 0; i < numClusters; i++)
+    {
+        int index = References[startIndex + i].index;
+        float3 correction = ClusterParticles[index].correction;
+
+        correctionAvg += correction;
+
+        // 取得したら値を0にしておく
+        // ClusterParticles[index].correction;
+    }
+
+    correctionAvg /= numClusters;
+
+    Particles[id].predictedPosition += k * correctionAvg;
 }
 
 
-[numthreads(64, 1, 1)]
+[numthreads(THREAD_GROUP_SIZE_X, 1, 1)]
 void UpdatePosAndVel (uint id : SV_DispatchThreadID)
 {
     if (id >= numParticles) return;

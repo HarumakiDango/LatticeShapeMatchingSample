@@ -20,8 +20,6 @@ public class LatticeShapeMatchingGPU : MonoBehaviour
             verticesWorld[i] = transform.TransformPoint(targetMesh.vertices[i]);
         }
 
-        simulator = new PBDSimulatorGPU();
-
         // メッシュ形状に合わせてグリッド状にパーティクルを配置する
         particles = ParticleGenerator.GenerateGridParticles(verticesWorld, targetMesh.triangles, gridWidth);
         Debug.Log("パーティクル数：" + particles.Length);
@@ -30,13 +28,19 @@ public class LatticeShapeMatchingGPU : MonoBehaviour
         clusters = ShapeMatchingClusterMaker.AssignGridClusters(particles, gridWidth);
         Debug.Log("クラスタ数：" + clusters.Length);
 
-        // 並列計算用にデータを変換する
+
+        // 生成したパーティクルとクラスタを渡してシミュレータをインスタンス化
+        simulator = new PBDSimulatorGPU(particles, clusters);
+
+        // スキニングを実行するコンポーネントをインスタンス化
+        skinning = new LatticeSkinningGPU();
 
     }
 
     private void Update()
     {
         // シミュレーション実行
+        simulator.ExecuteStep(Time.deltaTime);
 
         // シミュレーション結果を使用してスキニングを実行
     }
@@ -48,7 +52,24 @@ public class LatticeShapeMatchingGPU : MonoBehaviour
         Gizmos.color = Color.green;
         for (int i = 0; i < particles.Length; i++)
         {
-            Gizmos.DrawSphere(particles[i].pos, 0.01f);
+            Gizmos.DrawSphere(particles[i].pos, 0.009f);
         }
+
+        if (simulator != null)
+        {
+            Gizmos.color = Color.red;
+            ComputeBuffer particleBuffer = simulator.GetParticleBuffer();
+            PBDParticleGPU[] particleArray = new PBDParticleGPU[particleBuffer.count];
+            particleBuffer.GetData(particleArray);
+            for (int i = 0; i < particleArray.Length; i++)
+            {
+                Gizmos.DrawSphere(particleArray[i].position, 0.01f);
+            }
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (simulator != null) simulator.ReleaseBuffers();
     }
 }

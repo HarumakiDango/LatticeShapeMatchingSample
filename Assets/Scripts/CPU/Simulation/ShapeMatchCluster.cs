@@ -14,6 +14,55 @@ public class ShapeMatchCluster
 
     private const float EPSILON = 1e-6f;
 
+    public ShapeMatchCluster(PBDParticle[] particles)
+    {
+        this.particles = new PBDParticle[particles.Length];
+        particles.CopyTo(this.particles, 0);
+
+        numParticles = particles.Length;
+
+        // 初期状態の重心の計算
+        restCenter = new Vector3(0, 0, 0);
+        for (int i = 0; i < numParticles; i++)
+        {
+            restCenter += this.particles[i].pos;
+        }
+        restCenter /= numParticles;
+
+        // 初期状態の重心からの相対位置を計算する
+        Matrix3x3f A = new Matrix3x3f();
+        restPositions = new Vector3[numParticles];
+
+        for (int i = 0; i < numParticles; i++)
+        {
+            Vector3 q = this.particles[i].pos - restCenter;
+            restPositions[i] = q;
+
+            A[0, 0] += q.x * q.x;
+            A[0, 1] += q.x * q.y;
+            A[0, 2] += q.x * q.z;
+
+            A[1, 0] += q.y * q.x;
+            A[1, 1] += q.y * q.y;
+            A[1, 2] += q.y * q.z;
+
+            A[2, 0] += q.z * q.x;
+            A[2, 1] += q.z * q.y;
+            A[2, 2] += q.z * q.z;
+        }
+
+        invRestMatrix = A.Inverse;
+
+
+        // Debug.Log("クラスタを生成しました。パーティクル数：" + numParticles);
+        for (int i = 0; i < numParticles; i++)
+        {
+            particles[i].numClusters++;
+        }
+
+        Debug.Log("クラスタが持つパーティクルの数：" + numParticles);
+    }
+
     public ShapeMatchCluster(PBDParticle[] particles, int[] indices)
     {
         this.particles = new PBDParticle[particles.Length];

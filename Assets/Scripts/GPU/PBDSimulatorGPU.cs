@@ -14,7 +14,9 @@ public struct PBDParticleGPU
 public struct ShapeMatchingClusterParam
 {
     public Vector3 restCenter;
-    public Matrix3x3f invRestMatrix;
+    public Vector3 invRestMatrixRow0;
+    public Vector3 invRestMatrixRow1;
+    public Vector3 invRestMatrixRow2;
     public int numClusterParticles;
     public int startParticleIndex;
 }
@@ -42,12 +44,27 @@ public struct CorrectionReferenceHelper
 
 public class PBDSimulatorGPU
 {
+    private const int THREAD_GROUP_SIZE_X = 64;
+
     private ComputeShader compute;
     private ComputeBuffer particleBuffer;
     private ComputeBuffer shapeMatchingClusterParamBuffer;
     private ComputeBuffer shapeMatchingClusterParticleBuffer;
     private ComputeBuffer correctionReferenceBuffer;
     private ComputeBuffer correctionReferenceHelperBuffer;
+
+    private int addExternalForceKernel;
+    private int predictPositionKernel;
+    private int shapeMatchingSolverKernel;
+    private int averageGoalPosKernel;
+    private int updatePosAndVelKernel;
+
+    private int numIterations = 2;
+    private int numSubsteps = 3;
+    private float dampCoeff = 0.98f;
+    private Vector3 gravity = new Vector3(0, -9.8f, 0);
+    private float stiffness = 0.99f;
+    private float colliderSize = 1;
 
     public PBDSimulatorGPU(PBDParticle[] particles, ShapeMatchCluster[] clusters)
     {
@@ -80,7 +97,9 @@ public class PBDSimulatorGPU
         {
             ShapeMatchingClusterParam clusterConst = new ShapeMatchingClusterParam();
             clusterConst.restCenter = clusters[i].restCenter;
-            clusterConst.invRestMatrix = clusters[i].invRestMatrix;
+            clusterConst.invRestMatrixRow0 = new Vector3(clusters[i].invRestMatrix.GetRow(0).x, clusters[i].invRestMatrix.GetRow(0).y, clusters[i].invRestMatrix.GetRow(0).z);
+            clusterConst.invRestMatrixRow1 = new Vector3(clusters[i].invRestMatrix.GetRow(1).x, clusters[i].invRestMatrix.GetRow(1).y, clusters[i].invRestMatrix.GetRow(1).z);
+            clusterConst.invRestMatrixRow2 = new Vector3(clusters[i].invRestMatrix.GetRow(2).x, clusters[i].invRestMatrix.GetRow(2).y, clusters[i].invRestMatrix.GetRow(2).z);
             clusterConst.numClusterParticles = clusters[i].numParticles;
             clusterConst.startParticleIndex = clusterParticleCount;
             clusterParams[i] = clusterConst;
@@ -114,7 +133,7 @@ public class PBDSimulatorGPU
             for (int j = 0; j < myClusterIDListArray[i].Count; j++)
             {
                 CorrectionReference reference = new CorrectionReference();
-                reference.index = myClusterIDListArray[i][j];
+                reference.index = myClusterIDListArray[i][j]; // ij
                 references.Add(reference);
 
                 referenceCount++;
@@ -127,26 +146,87 @@ public class PBDSimulatorGPU
         shapeMatchingClusterParticleBuffer = ComputeHelper.CreateStructuredBuffer(clusterParticles.ToArray());
         correctionReferenceBuffer = ComputeHelper.CreateStructuredBuffer(references.ToArray());
         correctionReferenceHelperBuffer = ComputeHelper.CreateStructuredBuffer(referenceHelpers);
+
+        // カーネルIDを取得
+        addExternalForceKernel = compute.FindKernel("AddExternalForce");
+        predictPositionKernel = compute.FindKernel("PredictPosition");
+        shapeMatchingSolverKernel = compute.FindKernel("ShapeMatchingSolver");
+        averageGoalPosKernel = compute.FindKernel("AverageGoalPos");
+        updatePosAndVelKernel = compute.FindKernel("UpdatePosAndVel");
     }
 
     public void ExecuteStep(float dt)
     {
-        UpdateSettings();
+        float subDt = dt / numSubsteps;
 
+        UpdateSettings(subDt);
+
+        for (int i = 0; i < numSubsteps; i++)
+        {
+            Substep(subDt);
+        }
+        
+    }
+
+    private void Substep(float subDt)
+    {
         // 外力適用
+        compute.Dispatch(addExternalForceKernel, Mathf.CeilToInt((float)particleBuffer.count / THREAD_GROUP_SIZE_X), 1, 1);
 
         // 推定位置計算
+        compute.Dispatch(predictPositionKernel, Mathf.CeilToInt((float)particleBuffer.count / THREAD_GROUP_SIZE_X), 1, 1);
 
         // 拘束を適用して位置を修正
+        for (int i = 0; i < numIterations; i++)
+        {
+            compute.Dispatch(shapeMatchingSolverKernel, Mathf.CeilToInt((float)shapeMatchingClusterParamBuffer.count / THREAD_GROUP_SIZE_X), 1, 1);
+            compute.Dispatch(averageGoalPosKernel, Mathf.CeilToInt((float)particleBuffer.count / THREAD_GROUP_SIZE_X), 1, 1);
+        }
+
+
 
         // 位置の修正結果をもとに、速度と位置を更新
+        compute.Dispatch(updatePosAndVelKernel, Mathf.CeilToInt((float)particleBuffer.count / THREAD_GROUP_SIZE_X), 1, 1);
     }
 
     /// <summary>
     /// ComputeShaderにバッファと変数をバインドする
     /// </summary>
-    private void UpdateSettings()
+    private void UpdateSettings(float dt)
     {
+        ComputeHelper.SetBuffer(compute, particleBuffer, "Particles", addExternalForceKernel, predictPositionKernel, shapeMatchingSolverKernel, averageGoalPosKernel, updatePosAndVelKernel);
+        ComputeHelper.SetBuffer(compute, shapeMatchingClusterParamBuffer, "ClusterParams", shapeMatchingSolverKernel);
+        ComputeHelper.SetBuffer(compute, shapeMatchingClusterParticleBuffer, "ClusterParticles", shapeMatchingSolverKernel, averageGoalPosKernel);
+        ComputeHelper.SetBuffer(compute, correctionReferenceBuffer, "References", averageGoalPosKernel);
+        ComputeHelper.SetBuffer(compute, correctionReferenceHelperBuffer, "ReferenceHelpers", averageGoalPosKernel);
 
+        compute.SetInt("numParticles", particleBuffer.count);
+        compute.SetInt("numClusters", shapeMatchingClusterParamBuffer.count);
+        compute.SetFloat("dt", dt);
+        compute.SetFloat("dampCoeff", dampCoeff);
+        compute.SetVector("gravity", gravity);
+        float k = 1 - Mathf.Pow(1 - Mathf.Clamp01(stiffness), 1f / (numIterations * numSubsteps));
+        compute.SetFloat("k", k);
+        compute.SetFloat("colliderSize", colliderSize);
+    }
+
+    /// <summary>
+    /// 外部からパーティクルのバッファを取得するためのメソッド
+    /// </summary>
+    public ComputeBuffer GetParticleBuffer()
+    {
+        return particleBuffer;
+    }
+
+    /// <summary>
+    /// メモリの解放
+    /// </summary>
+    public void ReleaseBuffers()
+    {
+        particleBuffer.Release();
+        shapeMatchingClusterParamBuffer.Release();
+        shapeMatchingClusterParticleBuffer.Release();
+        correctionReferenceBuffer.Release();
+        correctionReferenceHelperBuffer.Release();
     }
 }
