@@ -62,8 +62,8 @@ public class PBDSimulatorGPU
     private int numIterations = 2;
     private int numSubsteps = 3;
     private float dampCoeff = 0.98f;
-    private Vector3 gravity = new Vector3(0, -9.8f, 0);
-    private float stiffness = 0.99f;
+    private Vector3 gravity = new Vector3(0, -0.1f, 0);
+    private float stiffness = 0.1f;
     private float colliderSize = 1;
 
     public PBDSimulatorGPU(PBDParticle[] particles, ShapeMatchCluster[] clusters)
@@ -148,11 +148,11 @@ public class PBDSimulatorGPU
         correctionReferenceHelperBuffer = ComputeHelper.CreateStructuredBuffer(referenceHelpers);
 
         // ÉJÅ[ÉlÉãIDÇéÊìæ
-        addExternalForceKernel = compute.FindKernel("AddExternalForce");
-        predictPositionKernel = compute.FindKernel("PredictPosition");
-        shapeMatchingSolverKernel = compute.FindKernel("ShapeMatchingSolver");
-        averageGoalPosKernel = compute.FindKernel("AverageGoalPos");
-        updatePosAndVelKernel = compute.FindKernel("UpdatePosAndVel");
+        addExternalForceKernel = compute.FindKernel("AddExternalForce"); Debug.Log(addExternalForceKernel);
+        predictPositionKernel = compute.FindKernel("PredictPosition"); Debug.Log(predictPositionKernel);
+        shapeMatchingSolverKernel = compute.FindKernel("ShapeMatchingSolver"); Debug.Log(shapeMatchingSolverKernel);
+        averageGoalPosKernel = compute.FindKernel("AverageGoalPos"); Debug.Log(averageGoalPosKernel);
+        updatePosAndVelKernel = compute.FindKernel("UpdatePosAndVel"); Debug.Log(updatePosAndVelKernel);
     }
 
     public void ExecuteStep(float dt)

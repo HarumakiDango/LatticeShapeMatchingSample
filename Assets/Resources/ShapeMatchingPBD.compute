@@ -6,7 +6,7 @@
 
 // #pragma pack_matrix( row_major )
 
-#include "Common/Matrix3x3.hlsl"
+#include "Common/Matrix3x3_2.hlsl"
 #include "Common/Matrix.hlsl"
 
 #define THREAD_GROUP_SIZE_X 64
@@ -92,6 +92,8 @@ void ShapeMatchingSolver (uint id : SV_DispatchThreadID)
     float3 invRestMatrixRow1 = ClusterParams[id].invRestMatrixRow1;
     float3 invRestMatrixRow2 = ClusterParams[id].invRestMatrixRow2;
 
+    float3x3 invRestMatrix = float3x3(invRestMatrixRow0, invRestMatrixRow1, invRestMatrixRow2);
+
     // 現在の重心の座標を計算する
     float3 center = float3(0, 0, 0);
     for (int i = 0; i < numClusterParticles; i++)
@@ -129,7 +131,7 @@ void ShapeMatchingSolver (uint id : SV_DispatchThreadID)
     // 回転行列を求める
     float3x3 R = float3x3(1,0,0, 0,1,0, 0,0,1);
     // PolarDecompositionStable(A, 1e-6, R);
-    // R = Matrix3x3FindRotationMatrixJacobi(A);
+    R = Matrix3x3FindRotationMatrixJacobi(A);
 
     // このクラスタでの修正ベクトルを保存する
     for (int i = 0; i < numClusterParticles; i++)
