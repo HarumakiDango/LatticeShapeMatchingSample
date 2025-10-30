@@ -9,6 +9,7 @@ public static class ParticleGenerator
     {
         List<PBDParticle> particleList = new List<PBDParticle>();
         int[,,] particleIDs = new int[grid.numPointsX, grid.numPointsY, grid.numPointsZ];
+        Debug.Log("numPointsX: " + grid.numPointsX + "numPointsY: " + grid.numPointsY + "numPointsZ: " + grid.numPointsZ);
         int particleCount = 0;
 
         for (int z = 0; z < grid.numPointsZ; z++)

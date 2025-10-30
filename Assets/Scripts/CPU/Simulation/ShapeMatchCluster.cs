@@ -112,7 +112,7 @@ public class ShapeMatchCluster
             particles[i].numClusters++;
         }
 
-        Debug.Log("クラスタが持つパーティクルの数：" + numParticles);
+        // Debug.Log("クラスタが持つパーティクルの数：" + numParticles);
     }
 
     public void ConstrainPositions()

@@ -34,7 +34,7 @@ public static class ShapeMatchingClusterMaker
             // シェイプマッチングの計算を安定させるため、パーティクル数が少なすぎる場合はクラスタを割り当てないようにする
             if (clusterParticles.Count <= 4) continue;
 
-            Debug.Log("このクラスタに登録されたパーティクルの数：" + clusterParticles.Count);
+            // Debug.Log("このクラスタに登録されたパーティクルの数：" + clusterParticles.Count);
 
             ShapeMatchCluster cluster = new ShapeMatchCluster(clusterParticles.ToArray(), clusterParticleIndices.ToArray());
             clusters.Add(cluster);

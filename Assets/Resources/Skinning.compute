@@ -1,14 +1,50 @@
-// Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CSMain
 
-// Create a RenderTexture with enableRandomWrite flag and set it
-// with cs.SetTexture
-RWTexture2D<float4> Result;
+#define THREAD_GROUP_SIZE_X 64
 
-[numthreads(8,8,1)]
-void CSMain (uint3 id : SV_DispatchThreadID)
+struct PBDParticleGPU
 {
-    // TODO: insert actual code here!
+    float3 position;
+    float3 predictedPosition;
+    float3 velocity;
+};
 
-    Result[id.xy] = float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
+struct SkinningVoxel
+{
+    int pID0, pID1, pID2, pID3, pID4, pID5, pID6, pID7;
+    float s, t, u;
+};
+
+StructuredBuffer<PBDParticleGPU> Particles;
+StructuredBuffer<SkinningVoxel> SkinningVoxels;
+RWStructuredBuffer<float3> Vertices;
+
+[numthreads(THREAD_GROUP_SIZE_X, 1, 1)]
+void CSMain (uint id : SV_DispatchThreadID)
+{
+    float3 p0 = Particles[SkinningVoxels[id].pID0].position;
+    float3 p1 = Particles[SkinningVoxels[id].pID1].position;
+    float3 p2 = Particles[SkinningVoxels[id].pID2].position;
+    float3 p3 = Particles[SkinningVoxels[id].pID3].position;
+    float3 p4 = Particles[SkinningVoxels[id].pID4].position;
+    float3 p5 = Particles[SkinningVoxels[id].pID5].position;
+    float3 p6 = Particles[SkinningVoxels[id].pID6].position;
+    float3 p7 = Particles[SkinningVoxels[id].pID7].position;
+
+    float s = SkinningVoxels[id].s;
+    float t = SkinningVoxels[id].t;
+    float u = SkinningVoxels[id].u;
+
+    float3 skinnedPos = 
+        (1 - u) * (1 - t) * (1 - s) * p0 +
+        (1 - u) * (1 - t) * s * p1 +
+        (1 - u) * t * (1 - s) * p2 +
+        u * (1 - t) * (1 - s) * p4 +
+        u * t * (1 - s) * p6 +
+        u * (1 - t) * s * p5 +
+        (1 - u) * t * s * p3 +
+        u * t * s * p7;
+    
+    Vertices[id] = skinnedPos;
 }
+

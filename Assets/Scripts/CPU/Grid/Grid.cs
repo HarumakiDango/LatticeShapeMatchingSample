@@ -13,10 +13,17 @@ public class Grid
     public bool[,,] isValidPoints;
     public int[,,] particleIDs;
 
-    public Grid(Vector3[] vertices, int[] triangles, int maxDiv)
+    public Grid(Vector3[] vertices, int[] triangles, int maxDiv, float gridScaleMag)
     {
         // 頂点配列からバウンディングボックスを求める
         (bBoxMax, bBoxMin) = GetBoundingBox(vertices);
+
+        // メッシュの大きさに対してグリッドの大きさがちょうどだと計算誤差ではみ出る場合があるので、少しだけグリッドを大きくする
+        Vector3 bBoxCenter = (bBoxMax + bBoxMin) / 2;
+        Vector3 bBoxMaxFromCenter = bBoxMax - bBoxCenter;
+        Vector3 bBoxMinFromCenter = bBoxMin - bBoxCenter;
+        bBoxMax = bBoxCenter + bBoxMaxFromCenter * gridScaleMag;
+        bBoxMin = bBoxCenter + bBoxMinFromCenter * gridScaleMag;
 
         // バウンディングボックスの最長辺を最大分割数で割り、ボクセルの幅を求める
         float edgeXLength = bBoxMax.x - bBoxMin.x;
@@ -60,20 +67,34 @@ public class Grid
                                     bBoxMin.y + (y + 0.5f) * cellWidth,
                                     bBoxMin.z + (z + 0.5f) * cellWidth);
 
-                    bool intersect = IsIntersectMesh(center, cellWidth, vertices, triangles);
-                    bool inside = IsVoxelInsideMesh(center, cellWidth, vertices, triangles);
+                    // ボクセルの中心がメッシュの内側にある場合、このボクセルの8頂点を有効化する
+                    if (IsVoxelInsideMesh(center, cellWidth, vertices, triangles))
+                    {
+                        isValidPoints[x, y, z] = true;
+                        isValidPoints[x + 1, y, z] = true;
+                        isValidPoints[x, y + 1, z] = true;
+                        isValidPoints[x + 1, y + 1, z] = true;
+                        isValidPoints[x, y, z + 1] = true;
+                        isValidPoints[x + 1, y, z + 1] = true;
+                        isValidPoints[x, y + 1, z + 1] = true;
+                        isValidPoints[x + 1, y + 1, z + 1] = true;
+                    }
 
-                    if (!(intersect || inside)) continue;
-
-                    // 交差もしくは内側にある場合は、このボクセルの8頂点を有効化
-                    isValidPoints[x, y, z] = true;
-                    isValidPoints[x + 1, y, z] = true;
-                    isValidPoints[x, y + 1, z] = true;
-                    isValidPoints[x + 1, y + 1, z] = true;
-                    isValidPoints[x, y, z + 1] = true;
-                    isValidPoints[x + 1, y, z + 1] = true;
-                    isValidPoints[x, y + 1, z + 1] = true;
-                    isValidPoints[x + 1, y + 1, z + 1] = true;
+                    else
+                    {
+                        if (IsIntersectMesh(center, cellWidth, vertices, triangles))
+                        {
+                            // ボクセルの６面のうちいずれかがメッシュのポリゴンと交差する場合、このボクセルの8頂点を有効化
+                            isValidPoints[x, y, z] = true;
+                            isValidPoints[x + 1, y, z] = true;
+                            isValidPoints[x, y + 1, z] = true;
+                            isValidPoints[x + 1, y + 1, z] = true;
+                            isValidPoints[x, y, z + 1] = true;
+                            isValidPoints[x + 1, y, z + 1] = true;
+                            isValidPoints[x, y + 1, z + 1] = true;
+                            isValidPoints[x + 1, y + 1, z + 1] = true;
+                        }   
+                    }
                 }
             }
         }
