@@ -61,10 +61,10 @@ public class PBDSimulatorGPU
 
     private int numIterations = 2;
     private int numSubsteps = 3;
-    private float dampCoeff = 0.98f;
-    private Vector3 gravity = new Vector3(0, -0.1f, 0);
-    private float stiffness = 0.1f;
-    private float colliderSize = 1;
+    private float dampCoeff = 0.97f;
+    private Vector3 gravity = new Vector3(0, -9.8f, 0);
+    private float stiffness = 0.3f;
+    private float colliderSize = 1.5f;
 
     public PBDSimulatorGPU(PBDParticle[] particles, ShapeMatchCluster[] clusters)
     {
@@ -95,14 +95,14 @@ public class PBDSimulatorGPU
 
         for (int i = 0; i < clusters.Length; i++)
         {
-            ShapeMatchingClusterParam clusterConst = new ShapeMatchingClusterParam();
-            clusterConst.restCenter = clusters[i].restCenter;
-            clusterConst.invRestMatrixRow0 = new Vector3(clusters[i].invRestMatrix.GetRow(0).x, clusters[i].invRestMatrix.GetRow(0).y, clusters[i].invRestMatrix.GetRow(0).z);
-            clusterConst.invRestMatrixRow1 = new Vector3(clusters[i].invRestMatrix.GetRow(1).x, clusters[i].invRestMatrix.GetRow(1).y, clusters[i].invRestMatrix.GetRow(1).z);
-            clusterConst.invRestMatrixRow2 = new Vector3(clusters[i].invRestMatrix.GetRow(2).x, clusters[i].invRestMatrix.GetRow(2).y, clusters[i].invRestMatrix.GetRow(2).z);
-            clusterConst.numClusterParticles = clusters[i].numParticles;
-            clusterConst.startParticleIndex = clusterParticleCount;
-            clusterParams[i] = clusterConst;
+            ShapeMatchingClusterParam clusterParam = new ShapeMatchingClusterParam();
+            clusterParam.restCenter = clusters[i].restCenter;
+            clusterParam.invRestMatrixRow0 = new Vector3(clusters[i].invRestMatrix.GetRow(0).x, clusters[i].invRestMatrix.GetRow(0).y, clusters[i].invRestMatrix.GetRow(0).z);
+            clusterParam.invRestMatrixRow1 = new Vector3(clusters[i].invRestMatrix.GetRow(1).x, clusters[i].invRestMatrix.GetRow(1).y, clusters[i].invRestMatrix.GetRow(1).z);
+            clusterParam.invRestMatrixRow2 = new Vector3(clusters[i].invRestMatrix.GetRow(2).x, clusters[i].invRestMatrix.GetRow(2).y, clusters[i].invRestMatrix.GetRow(2).z);
+            clusterParam.numClusterParticles = clusters[i].numParticles;
+            clusterParam.startParticleIndex = clusterParticleCount;
+            clusterParams[i] = clusterParam;
 
             for (int j = 0; j < clusters[i].numParticles; j++)
             {
@@ -113,7 +113,7 @@ public class PBDSimulatorGPU
                 clusterParticles.Add(clusterParticle);
 
                 // particleIndex番目のパーティクルが、i番目のクラスタに登録されている
-                myClusterIDListArray[clusterParticle.particleIndex].Add(i);
+                myClusterIDListArray[clusterParticle.particleIndex].Add(clusterParam.startParticleIndex + j);
 
                 clusterParticleCount++;
             }

@@ -3,12 +3,17 @@ using UnityEngine;
 public class LatticeShapeMatchingGPU : MonoBehaviour
 {
     [Range(0.1f, 1)] public float gridWidth = 0.2f;
+    [Range(0, 9)] public int maxDiv = 5;
+
+    private Grid grid;
 
     PBDParticle[] particles;
+    int[,,] particleIDs;
     ShapeMatchCluster[] clusters;
 
     PBDSimulatorGPU simulator;
     LatticeSkinningGPU skinning;
+
 
     private void Start()
     {
@@ -20,8 +25,13 @@ public class LatticeShapeMatchingGPU : MonoBehaviour
             verticesWorld[i] = transform.TransformPoint(targetMesh.vertices[i]);
         }
 
-        // メッシュ形状に合わせてグリッド状にパーティクルを配置する
-        particles = ParticleGenerator.GenerateGridParticles(verticesWorld, targetMesh.triangles, gridWidth);
+        // メッシュ形状に合わせたグリッドを定義する
+        grid = new Grid(verticesWorld, targetMesh.triangles, maxDiv);
+
+        // グリッドの点の上にパーティクルを配置する
+        (particles, particleIDs) = ParticleGenerator.GenerateGridParticles(grid);
+
+        
         Debug.Log("パーティクル数：" + particles.Length);
 
         // パーティクルにシェイプマッチングのクラスタを割り当てる
@@ -33,7 +43,7 @@ public class LatticeShapeMatchingGPU : MonoBehaviour
         simulator = new PBDSimulatorGPU(particles, clusters);
 
         // スキニングを実行するコンポーネントをインスタンス化
-        skinning = new LatticeSkinningGPU();
+        // skinning = new LatticeSkinningGPU();
 
     }
 

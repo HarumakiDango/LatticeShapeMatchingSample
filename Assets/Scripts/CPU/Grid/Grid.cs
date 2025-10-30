@@ -1,104 +1,97 @@
 using UnityEngine;
-using System.Collections.Generic;
-public static class ParticleGenerator
+
+public class Grid
 {
-    /// <summary>
-    /// グリッドの点の上にパーティクルを配置する
-    /// </summary>
-    public static (PBDParticle[], int[,,]) GenerateGridParticles(Grid grid)
-    {
-        List<PBDParticle> particleList = new List<PBDParticle>();
-        int[,,] particleIDs = new int[grid.numPointsX, grid.numPointsY, grid.numPointsZ];
-        int particleCount = 0;
+    public Vector3 bBoxMin;
+    public Vector3 bBoxMax;
+    public float cellWidth;
+    public int numPointsX;
+    public int numPointsY;
+    public int numPointsZ;
 
-        for (int z = 0; z < grid.numPointsZ; z++)
-        {
-            for (int y = 0; y < grid.numPointsY; y++)
-            {
-                for (int x = 0; x < grid.numPointsX; x++)
-                {
-                    if (grid.isValidPoints[x, y, z])
-                    {
-                        PBDParticle particle = new PBDParticle(grid.pointPositions[x, y, z]);
-                        particleList.Add(particle);
+    public Vector3[,,] pointPositions; // x,y,z
+    public bool[,,] isValidPoints;
+    public int[,,] particleIDs;
 
-                        particleIDs[x, y, z] = particleCount;
-                        particleCount++;
-                    }
-                }
-            }
-        }
-
-        return (particleList.ToArray(), particleIDs);
-    }
-
-    /// <summary>
-    /// メッシュ形状に沿ってグリッド状にパーティクルを配置する
-    /// </summary>
-    public static PBDParticle[] GenerateGridParticles(Vector3[] vertices, int[] triangles, float gridWidth)
+    public Grid(Vector3[] vertices, int[] triangles, int maxDiv)
     {
         // 頂点配列からバウンディングボックスを求める
-        (Vector3 boundingBoxMax, Vector3 boundingBoxMin) = GetBoundingBox(vertices);
+        (bBoxMax, bBoxMin) = GetBoundingBox(vertices);
 
-        // 軸方向ごとのグリッドの数
-        int numGridX = Mathf.CeilToInt((boundingBoxMax.x - boundingBoxMin.x) / gridWidth) + 1;
-        int numGridY = Mathf.CeilToInt((boundingBoxMax.y - boundingBoxMin.y) / gridWidth) + 1;
-        int numGridZ = Mathf.CeilToInt((boundingBoxMax.z - boundingBoxMin.z) / gridWidth) + 1;
-        Debug.Log("numGridX: " + numGridX + "numGridY: " + numGridY + "numGridZ: " + numGridZ);
+        // バウンディングボックスの最長辺を最大分割数で割り、ボクセルの幅を求める
+        float edgeXLength = bBoxMax.x - bBoxMin.x;
+        float edgeYLength = bBoxMax.y - bBoxMin.y;
+        float edgeZLength = bBoxMax.z - bBoxMin.z;
+
+        if (edgeXLength > edgeYLength && edgeXLength > edgeZLength)
+        {
+            cellWidth = edgeXLength / (maxDiv + 1);
+            numPointsX = maxDiv + 2;
+            numPointsY = Mathf.CeilToInt(edgeYLength / cellWidth) + 1;
+            numPointsZ = Mathf.CeilToInt(edgeZLength / cellWidth) + 1;
+        }
+        else if (edgeYLength > edgeXLength && edgeYLength > edgeZLength)
+        {
+            cellWidth = edgeYLength / (maxDiv + 1);
+            numPointsX = Mathf.CeilToInt(edgeXLength / cellWidth) + 1;
+            numPointsY = maxDiv + 2;
+            numPointsZ = Mathf.CeilToInt(edgeZLength / cellWidth) + 1;
+        }
+        else
+        {
+            cellWidth = edgeZLength / (maxDiv + 1);
+            numPointsX = Mathf.CeilToInt(edgeXLength / cellWidth) + 1;
+            numPointsY = Mathf.CeilToInt(edgeYLength / cellWidth) + 1;
+            numPointsZ = maxDiv + 2;
+        }
 
         // グリッドの頂点上にパーティクルを配置するかどうかのフラグ
-        bool[,,] isValidPoint = new bool[numGridX, numGridY, numGridZ];
+        isValidPoints = new bool[numPointsX, numPointsY, numPointsZ];
 
         // ボクセルとメッシュのポリゴンの交差判定・内包判定を実行し、パーティクルを配置する必要があるかどうか判定する
-        for (int z = 0; z < numGridZ - 1; z++)
+        for (int z = 0; z < numPointsZ - 1; z++)
         {
-            for (int y = 0; y < numGridY - 1; y++)
+            for (int y = 0; y < numPointsY - 1; y++)
             {
-                for (int x = 0; x < numGridX - 1; x++)
+                for (int x = 0; x < numPointsX - 1; x++)
                 {
                     Vector3 center = new Vector3(
-                        boundingBoxMin.x + (x + 0.5f) * gridWidth,
-                        boundingBoxMin.y + (y + 0.5f) * gridWidth,
-                        boundingBoxMin.z + (z + 0.5f) * gridWidth);
+                                    bBoxMin.x + (x + 0.5f) * cellWidth,
+                                    bBoxMin.y + (y + 0.5f) * cellWidth,
+                                    bBoxMin.z + (z + 0.5f) * cellWidth);
 
-                    bool intersect = IsIntersectMesh(center, gridWidth, vertices, triangles);
-                    bool inside = IsVoxelInsideMesh(center, gridWidth, vertices, triangles);
+                    bool intersect = IsIntersectMesh(center, cellWidth, vertices, triangles);
+                    bool inside = IsVoxelInsideMesh(center, cellWidth, vertices, triangles);
 
                     if (!(intersect || inside)) continue;
 
                     // 交差もしくは内側にある場合は、このボクセルの8頂点を有効化
-                    isValidPoint[x, y, z] = true;
-                    isValidPoint[x + 1, y, z] = true;
-                    isValidPoint[x, y + 1, z] = true;
-                    isValidPoint[x + 1, y + 1, z] = true;
-                    isValidPoint[x, y, z + 1] = true;
-                    isValidPoint[x + 1, y, z + 1] = true;
-                    isValidPoint[x, y + 1, z + 1] = true;
-                    isValidPoint[x + 1, y + 1, z + 1] = true;
+                    isValidPoints[x, y, z] = true;
+                    isValidPoints[x + 1, y, z] = true;
+                    isValidPoints[x, y + 1, z] = true;
+                    isValidPoints[x + 1, y + 1, z] = true;
+                    isValidPoints[x, y, z + 1] = true;
+                    isValidPoints[x + 1, y, z + 1] = true;
+                    isValidPoints[x, y + 1, z + 1] = true;
+                    isValidPoints[x + 1, y + 1, z + 1] = true;
                 }
             }
         }
 
-        // パーティクルの生成
-        List<PBDParticle> particles = new List<PBDParticle>();
-
-        for (int z = 0; z < numGridZ; z++)
+        pointPositions = new Vector3[numPointsX, numPointsY, numPointsZ];
+        for (int z = 0; z < numPointsZ; z++)
         {
-            for (int y = 0; y < numGridY; y++)
+            for (int y = 0; y < numPointsY; y++)
             {
-                for (int x = 0; x < numGridX; x++)
+                for (int x = 0; x < numPointsX; x++)
                 {
-                    if (isValidPoint[x, y, z])
-                    {
-                        Vector3 pos = new Vector3(boundingBoxMin.x + gridWidth * x, boundingBoxMin.y + gridWidth * y, boundingBoxMin.z + gridWidth * z);
-                        PBDParticle p = new PBDParticle(pos);
-                        particles.Add(p);
-                    }
+                    pointPositions[x, y, z] = new Vector3(
+                        bBoxMin.x + x * cellWidth,
+                        bBoxMin.y + y * cellWidth,
+                        bBoxMin.z + z * cellWidth);
                 }
             }
         }
-
-        return particles.ToArray();
     }
 
     /// <summary>
@@ -106,7 +99,7 @@ public static class ParticleGenerator
     /// </summary>
     /// <param name="vertices">頂点配列</param>
     /// <returns>XYZ+・XYZ-</returns>
-    private static (Vector3, Vector3) GetBoundingBox(Vector3[] vertices)
+    private (Vector3, Vector3) GetBoundingBox(Vector3[] vertices)
     {
         Vector3 max = new Vector3(-Mathf.Infinity, -Mathf.Infinity, -Mathf.Infinity);
         Vector3 min = new Vector3(Mathf.Infinity, Mathf.Infinity, Mathf.Infinity);
